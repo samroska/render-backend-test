@@ -17,7 +17,7 @@ fi
 
 # Install dependencies if requirements.txt is newer than last install
 if [[ ! -f .last_install ]] || [[ requirements.txt -nt .last_install ]]; then
-    echo "📦 Installing/updating dependencies..."
+    echo "Installing/updating dependencies..."
     pip install -r requirements.txt
     if [[ $? -eq 0 ]]; then
         touch .last_install
