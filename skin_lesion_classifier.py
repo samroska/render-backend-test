@@ -5,23 +5,114 @@ import numpy as np
 import logging
 from typing import Dict, Union
 import os
+import zipfile
+import tempfile
+import shutil
+import glob
 
 logger = logging.getLogger(__name__)
 
 class SkinLesionClassifier:
+    """
+    A class for skin lesion classification using a pre-trained Keras model.
+    
+    This class loads a trained model and provides methods for preprocessing
+    images and making predictions on skin lesion images.
+    """
  
     def __init__(self, model_path: str = 'PAD-UFES-20.keras'):
+        """
+        Initialize the classifier with a pre-trained model.
         
+        Args:
+            model_path (str): Path to the trained Keras model file or zip file containing the model
+        """
+        self.original_model_path = model_path
         self.model_path = model_path
         self.model = None
         self.class_names = ['ACK', 'BCC', 'MEL', 'NEV', 'SCC', 'SEK']
         self.input_size = (64, 64)
+        self.temp_dir = None
         
         self._load_model()
     
-    def _load_model(self):
-         
+    def _reassemble_split_files(self, base_path: str) -> str:
+        """Reassemble split files if they exist."""
+        # Check if split files exist
+        split_pattern = f"{base_path}.part*"
+        split_files = sorted(glob.glob(split_pattern))
+        
+        if not split_files:
+            return base_path  # No split files found, return original path
+        
+        logger.info(f"Found {len(split_files)} split files: {split_files}")
+        
+        # Create temporary file for reassembled content
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.zip')
+        
         try:
+            with os.fdopen(temp_fd, 'wb') as temp_file:
+                for split_file in split_files:
+                    logger.info(f"Reading split file: {split_file}")
+                    with open(split_file, 'rb') as sf:
+                        temp_file.write(sf.read())
+            
+            logger.info(f"Successfully reassembled {len(split_files)} files into {temp_path}")
+            return temp_path
+            
+        except Exception as e:
+            # Clean up temp file if something went wrong
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+            raise e
+    
+    def _extract_model_if_zipped(self):
+        """Extract model from zip file if needed, handling split files."""
+        original_path = self.original_model_path
+        
+        # Check if we need to reassemble split files
+        if not os.path.exists(original_path):
+            # Try to find and reassemble split files
+            reassembled_path = self._reassemble_split_files(original_path)
+            if reassembled_path != original_path:
+                self.model_path = reassembled_path
+                original_path = reassembled_path
+        
+        # Check if the file is a zip file
+        if original_path.endswith('.zip') or self.original_model_path.endswith('.zip'):
+            try:
+                logger.info(f"Extracting model from zip: {original_path}")
+                
+                # Create a temporary directory
+                if not self.temp_dir:
+                    self.temp_dir = tempfile.mkdtemp()
+                
+                # Extract the zip file
+                with zipfile.ZipFile(original_path, 'r') as zip_ref:
+                    zip_ref.extractall(self.temp_dir)
+                
+                # Find the model file in the extracted content
+                for root, dirs, files in os.walk(self.temp_dir):
+                    for file in files:
+                        if file.endswith('.keras') or file.endswith('.h5'):
+                            self.model_path = os.path.join(root, file)
+                            logger.info(f"Found model file: {self.model_path}")
+                            return
+                
+                raise FileNotFoundError("No .keras or .h5 model file found in the zip archive")
+                
+            except Exception as e:
+                logger.error(f"Error extracting model from zip: {e}")
+                raise
+    
+    def _load_model(self):
+        """Load the pre-trained model from disk."""
+        try:
+            # Check if we need to extract from zip
+            self._extract_model_if_zipped()
+            
             if not os.path.exists(self.model_path):
                 raise FileNotFoundError(f"Model file not found: {self.model_path}")
             
@@ -30,7 +121,22 @@ class SkinLesionClassifier:
             
         except Exception as e:
             logger.error(f"Error loading model: {e}")
+            # Clean up temp directory if it was created
+            self._cleanup_temp_files()
             raise
+    
+    def _cleanup_temp_files(self):
+        """Clean up temporary files if they exist."""
+        if self.temp_dir and os.path.exists(self.temp_dir):
+            try:
+                shutil.rmtree(self.temp_dir)
+                logger.info(f"Cleaned up temporary directory: {self.temp_dir}")
+            except Exception as e:
+                logger.warning(f"Could not clean up temporary directory: {e}")
+    
+    def __del__(self):
+        """Destructor to clean up temporary files."""
+        self._cleanup_temp_files()
     
     def preprocess_image(self, image: Union[Image.Image, str]) -> np.ndarray:
  

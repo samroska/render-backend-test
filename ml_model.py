@@ -1,7 +1,8 @@
 from skin_lesion_classifier import SkinLesionClassifier
 
 
-classifier = SkinLesionClassifier('PAD-UFES-20.keras')
+# Create a global classifier instance for backward compatibility
+classifier = SkinLesionClassifier('PAD-UFES-20.zip')  # Now supports zip files
 
 def inference_function(image):
  

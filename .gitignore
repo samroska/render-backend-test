@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+# Model files (keep split parts, ignore reassembled)
+PAD-UFES-20.zip
+PAD-UFES-20.keras
+*.h5
+
 # Distribution / packaging
 .Python
 build/
