@@ -20,11 +20,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://bespoke-medovik-0b9d2c.netlify.app"
-    ],
+    allow_origins=["https://bespoke-medovik-0b9d2c.netlify.app/"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
