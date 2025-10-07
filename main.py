@@ -20,7 +20,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development - restrict in production
+    allow_origins=[
+        "*",
+        "https://bespoke-medovik-0b9d2c.netlify.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],  # Explicit origins for production
     allow_credentials=False,  # Set to False when using wildcard origins
     allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
     allow_headers=["*"],
@@ -29,20 +35,26 @@ app.add_middleware(
 # Additional CORS middleware for extra coverage
 @app.middleware("http")
 async def cors_handler(request: Request, call_next):
+    # Get the origin from the request
+    origin = request.headers.get("origin")
+    
     if request.method == "OPTIONS":
         # Handle preflight requests
         response = JSONResponse(content={"message": "OK"})
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, Origin, X-Requested-With"
-        response.headers["Access-Control-Max-Age"] = "86400"
-        return response
+    else:
+        response = await call_next(request)
     
-    response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
+    # Always add CORS headers
+    response.headers["Access-Control-Allow-Origin"] = origin or "*"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+    response.headers["Access-Control-Max-Age"] = "86400"
     response.headers["Access-Control-Expose-Headers"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "false"
+    
+    # Add Vary header for proper caching
+    response.headers["Vary"] = "Origin"
+    
     return response
 
 @app.get("/")
@@ -64,6 +76,8 @@ async def predict_options():
             "Access-Control-Allow-Methods": "POST, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
             "Access-Control-Max-Age": "86400",
+            "Access-Control-Allow-Credentials": "false",
+            "Vary": "Origin"
         }
     )
 
@@ -78,6 +92,24 @@ async def root_options():
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
             "Access-Control-Max-Age": "86400",
+            "Access-Control-Allow-Credentials": "false",
+            "Vary": "Origin"
+        }
+    )
+
+@app.options("/{path:path}")
+async def catch_all_options(path: str):
+    """Catch-all OPTIONS handler for any endpoint"""
+    return JSONResponse(
+        status_code=200,
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
+            "Access-Control-Max-Age": "86400",
+            "Access-Control-Allow-Credentials": "false",
+            "Vary": "Origin"
         }
     )
 
