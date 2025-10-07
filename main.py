@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
@@ -20,11 +20,30 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://bespoke-medovik-0b9d2c.netlify.app/"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_origins=["*"],  # Allow all origins for development - restrict in production
+    allow_credentials=False,  # Set to False when using wildcard origins
+    allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
     allow_headers=["*"],
 )
+
+# Additional CORS middleware for extra coverage
+@app.middleware("http")
+async def cors_handler(request: Request, call_next):
+    if request.method == "OPTIONS":
+        # Handle preflight requests
+        response = JSONResponse(content={"message": "OK"})
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+        response.headers["Access-Control-Max-Age"] = "86400"
+        return response
+    
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+    response.headers["Access-Control-Expose-Headers"] = "*"
+    return response
 
 @app.get("/")
 async def root():
@@ -34,9 +53,46 @@ async def root():
 async def health_check():
     return {"status": "healthy", "service": "ml-image-api"}
 
+@app.options("/predict")
+async def predict_options():
+    """Handle CORS preflight requests for /predict endpoint"""
+    return JSONResponse(
+        status_code=200,
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
+
+@app.options("/")
+async def root_options():
+    """Handle CORS preflight requests for root endpoint"""
+    return JSONResponse(
+        status_code=200,
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
+
 @app.post("/predict")
-async def predict_image(file: UploadFile = File(..., description="PNG image file to process")):
- 
+async def predict_image(file: UploadFile = File(..., description="PNG, JPG, or JPEG image file to process")):
+    """
+    Process a PNG, JPG, or JPEG image through the skin lesion classification model.
+    Automatically converts JPG/JPEG to PNG format for processing.
+    
+    Args:
+        file: PNG, JPG, or JPEG image file to be classified
+        
+    Returns:
+        JSONResponse with prediction results
+    """
     try:
         logger.info(f"Received file upload: filename={file.filename}, content_type={file.content_type}")
         
@@ -45,7 +101,7 @@ async def predict_image(file: UploadFile = File(..., description="PNG image file
             logger.error("No file uploaded")
             return JSONResponse(
                 status_code=422,
-                content={"error": "No file uploaded. Please provide a PNG image file."}
+                content={"error": "No file uploaded. Please provide a PNG, JPG, or JPEG image file."}
             )
         
         # Read file content
@@ -57,36 +113,54 @@ async def predict_image(file: UploadFile = File(..., description="PNG image file
             logger.error("Uploaded file is empty")
             return JSONResponse(
                 status_code=422,
-                content={"error": "Uploaded file is empty. Please provide a valid PNG image."}
+                content={"error": "Uploaded file is empty. Please provide a valid image file."}
             )
         
-        # Validate image format
+        # Validate and convert image format
         try:
             img = Image.open(io.BytesIO(file_content))
             img.verify()  # Verify the image is valid
             
             # Re-open the image after verify (verify() can corrupt the image object)
             img = Image.open(io.BytesIO(file_content))
+            original_format = img.format
             
-            # Check if the image format is PNG
-            if img.format != 'PNG':
-                logger.error(f"Invalid image format: {img.format}. Expected PNG.")
+            # Check if the image format is supported
+            if img.format not in ['PNG', 'JPEG']:
+                logger.error(f"Unsupported image format: {img.format}")
                 return JSONResponse(
                     status_code=422,
                     content={
-                        "error": f"Invalid image format: {img.format}. Only PNG images are accepted.",
+                        "error": f"Unsupported image format: {img.format}. Only PNG, JPG, and JPEG are supported.",
                         "received_format": img.format,
-                        "expected_format": "PNG"
+                        "supported_formats": ["PNG", "JPEG", "JPG"]
                     }
                 )
             
-            logger.info(f"Valid PNG image validated: {img.format}, size: {img.size}")
+            # Convert to PNG if it's JPEG/JPG
+            if img.format == 'JPEG':
+                logger.info(f"Converting {img.format} to PNG for processing")
+                
+                # Ensure RGB mode (JPEG might be in different modes)
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Convert to PNG in memory
+                png_buffer = io.BytesIO()
+                img.save(png_buffer, format='PNG')
+                png_buffer.seek(0)
+                
+                # Create new PNG image object
+                img = Image.open(png_buffer)
+                logger.info(f"Successfully converted {original_format} to PNG")
+            
+            logger.info(f"Valid image validated: format={original_format}, final_format=PNG, size={img.size}")
             
         except Exception as e:
             logger.error(f"Invalid image file: {e}")
             return JSONResponse(
                 status_code=422,
-                content={"error": "Invalid image file. Please upload a valid PNG image."}
+                content={"error": "Invalid image file. Please upload a valid PNG, JPG, or JPEG image."}
             )
         
         # Process image through ML model
@@ -106,10 +180,12 @@ async def predict_image(file: UploadFile = File(..., description="PNG image file
                     "message": "Image processed successfully",
                     "filename": file.filename,
                     "image_info": {
-                        "format": img.format,
+                        "original_format": original_format,
+                        "processed_format": "PNG",
                         "size": img.size,
                         "mode": img.mode,
-                        "file_size_bytes": len(file_content)
+                        "file_size_bytes": len(file_content),
+                        "converted": original_format != "PNG"
                     },
                     "predictions": {
                         "top_prediction": {
