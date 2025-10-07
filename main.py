@@ -133,7 +133,11 @@ async def predict_image(file: UploadFile = File(..., description="PNG, JPG, or J
             logger.error("No file uploaded")
             return JSONResponse(
                 status_code=422,
-                content={"error": "No file uploaded. Please provide a PNG, JPG, or JPEG image file."}
+                content={"error": "No file uploaded. Please provide a PNG, JPG, or JPEG image file."},
+                headers={
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                }
             )
         
         # Read file content
@@ -145,7 +149,11 @@ async def predict_image(file: UploadFile = File(..., description="PNG, JPG, or J
             logger.error("Uploaded file is empty")
             return JSONResponse(
                 status_code=422,
-                content={"error": "Uploaded file is empty. Please provide a valid image file."}
+                content={"error": "Uploaded file is empty. Please provide a valid image file."},
+                headers={
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                }
             )
         
         # Validate and convert image format
@@ -166,6 +174,10 @@ async def predict_image(file: UploadFile = File(..., description="PNG, JPG, or J
                         "error": f"Unsupported image format: {img.format}. Only PNG, JPG, and JPEG are supported.",
                         "received_format": img.format,
                         "supported_formats": ["PNG", "JPEG", "JPG"]
+                    },
+                    headers={
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Origin": "*"
                     }
                 )
             
@@ -192,17 +204,47 @@ async def predict_image(file: UploadFile = File(..., description="PNG, JPG, or J
             logger.error(f"Invalid image file: {e}")
             return JSONResponse(
                 status_code=422,
-                content={"error": "Invalid image file. Please upload a valid PNG, JPG, or JPEG image."}
+                content={"error": "Invalid image file. Please upload a valid PNG, JPG, or JPEG image."},
+                headers={
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                }
             )
         
         # Process image through ML model
         try:
             # Use the inference function from ml_model
+            logger.info("Starting ML model inference...")
             predictions = inference_function(img)
+            logger.info(f"ML model returned: {predictions}")
+            
+            # Validate predictions format
+            if not isinstance(predictions, dict):
+                logger.error(f"Invalid predictions format: {type(predictions)}")
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": "ML model returned invalid prediction format"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Origin": "*"
+                    }
+                )
             
             # Get the top prediction
-            top_class = max(predictions, key=predictions.get)
-            confidence = predictions[top_class]
+            try:
+                top_class = max(predictions, key=predictions.get)
+                confidence = predictions[top_class]
+                logger.info(f"Top prediction: {top_class} with confidence: {confidence}")
+            except Exception as e:
+                logger.error(f"Error processing predictions: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": "Error processing model predictions"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Origin": "*"
+                    }
+                )
             
             logger.info(f"Prediction completed successfully for {file.filename}")
             
@@ -226,6 +268,12 @@ async def predict_image(file: UploadFile = File(..., description="PNG, JPG, or J
                         },
                         "all_probabilities": predictions
                     }
+                },
+                headers={
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
                 }
             )
             
@@ -233,7 +281,11 @@ async def predict_image(file: UploadFile = File(..., description="PNG, JPG, or J
             logger.error(f"Error during ML inference: {e}")
             return JSONResponse(
                 status_code=500,
-                content={"error": f"Error processing image through ML model: {str(e)}"}
+                content={"error": f"Error processing image through ML model: {str(e)}"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*"
+                }
             )
             
     except HTTPException:
@@ -242,5 +294,9 @@ async def predict_image(file: UploadFile = File(..., description="PNG, JPG, or J
         logger.error(f"Unexpected error processing image: {e}")
         return JSONResponse(
             status_code=500,
-            content={"error": f"Internal server error: {str(e)}"}
+            content={"error": f"Internal server error: {str(e)}"},
+            headers={
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            }
         )
