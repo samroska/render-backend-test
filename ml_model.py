@@ -1,13 +1,17 @@
 from skin_lesion_classifier import SkinLesionClassifier
 
-
-# Create a global classifier instance for backward compatibility
-classifier = SkinLesionClassifier('PAD-UFES-20.zip')  # Now supports zip files
-
 def inference_function(image):
- 
+    """
+    Legacy inference function that uses the static classifier class.
+    
+    Args:
+        image: PIL Image object or path to image file
+        
+    Returns:
+        Dict[str, float]: Prediction results
+    """
     try:
-        predictions = classifier.predict(image)
+        predictions = SkinLesionClassifier.predict(image)
         
         # Print results in the original format
         print('\nProbabilities:')
