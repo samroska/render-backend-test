@@ -32,24 +32,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.middleware("http")
-async def cors_handler(request: Request, call_next):
-    origin = request.headers.get("origin")
+# @app.middleware("http")
+# async def cors_handler(request: Request, call_next):
+#     origin = request.headers.get("origin")
     
-    if request.method == "OPTIONS":
-        response = JSONResponse(content={"message": "OK"})
-    else:
-        response = await call_next(request)
+#     if request.method == "OPTIONS":
+#         response = JSONResponse(content={"message": "OK"})
+#     else:
+#         response = await call_next(request)
     
-    response.headers["Access-Control-Allow-Origin"] = origin or "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, Origin, X-Requested-With"
-    response.headers["Access-Control-Max-Age"] = "86400"
-    response.headers["Access-Control-Expose-Headers"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "false"
-    response.headers["Vary"] = "Origin"
+#     response.headers["Access-Control-Allow-Origin"] = origin or "*"
+#     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+#     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+#     response.headers["Access-Control-Max-Age"] = "86400"
+#     response.headers["Access-Control-Expose-Headers"] = "*"
+#     response.headers["Access-Control-Allow-Credentials"] = "false"
+#     response.headers["Vary"] = "Origin"
     
-    return response
+#     return response
 
 @app.get("/")
 async def root():
