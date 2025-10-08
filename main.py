@@ -7,7 +7,7 @@ import numpy as np
 from typing import Optional
 import logging
 import skin_lesion_classifier as Processor
-from ml_model import inference_function
+from skin_lesion_classifier import SkinLesionClassifier
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,11 +21,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "*",
         "https://bespoke-medovik-0b9d2c.netlify.app",
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
+ 
     ],  # Explicit origins for production
     allow_credentials=False,  # Set to False when using wildcard origins
     allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
@@ -64,54 +61,6 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "ml-image-api"}
-
-@app.options("/predict")
-async def predict_options():
-    """Handle CORS preflight requests for /predict endpoint"""
-    return JSONResponse(
-        status_code=200,
-        content={"message": "OK"},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
-            "Access-Control-Max-Age": "86400",
-            "Access-Control-Allow-Credentials": "false",
-            "Vary": "Origin"
-        }
-    )
-
-@app.options("/")
-async def root_options():
-    """Handle CORS preflight requests for root endpoint"""
-    return JSONResponse(
-        status_code=200,
-        content={"message": "OK"},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
-            "Access-Control-Max-Age": "86400",
-            "Access-Control-Allow-Credentials": "false",
-            "Vary": "Origin"
-        }
-    )
-
-@app.options("/{path:path}")
-async def catch_all_options(path: str):
-    """Catch-all OPTIONS handler for any endpoint"""
-    return JSONResponse(
-        status_code=200,
-        content={"message": "OK"},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
-            "Access-Control-Max-Age": "86400",
-            "Access-Control-Allow-Credentials": "false",
-            "Vary": "Origin"
-        }
-    )
 
 @app.post("/predict")
 async def predict_image(file: UploadFile = File(..., description="PNG, JPG, or JPEG image file to process")):
@@ -215,8 +164,7 @@ async def predict_image(file: UploadFile = File(..., description="PNG, JPG, or J
         try:
             # Use the inference function from ml_model
             logger.info("Starting ML model inference...")
-            predictions = inference_function(img)
-            logger.info(f"ML model returned: {predictions}")
+            predictions = SkinLesionClassifier.predict(img)
             
             # Validate predictions format
             if not isinstance(predictions, dict):
