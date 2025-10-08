@@ -11,7 +11,7 @@ import sys
 def reassemble_model(base_filename="PAD-UFES-20.zip"):
     """Reassemble split model files into original zip file."""
     
-    # Find all split files
+ 
     split_pattern = f"{base_filename}.part*"
     split_files = sorted(glob.glob(split_pattern))
     
@@ -21,10 +21,10 @@ def reassemble_model(base_filename="PAD-UFES-20.zip"):
     
     print(f"Found {len(split_files)} split files:")
     for f in split_files:
-        size = os.path.getsize(f) / (1024 * 1024)  # Size in MB
+        size = os.path.getsize(f) / (1024 * 1024)   
         print(f"  {f} ({size:.1f} MB)")
     
-    # Reassemble files
+  
     output_file = base_filename
     print(f"\nReassembling into: {output_file}")
     
@@ -35,11 +35,11 @@ def reassemble_model(base_filename="PAD-UFES-20.zip"):
                 with open(split_file, 'rb') as infile:
                     outfile.write(infile.read())
         
-        # Verify the output file
+       
         output_size = os.path.getsize(output_file) / (1024 * 1024)
         print(f"\nSuccess! Created {output_file} ({output_size:.1f} MB)")
         
-        # Verify it's a valid zip file
+        
         import zipfile
         try:
             with zipfile.ZipFile(output_file, 'r') as zf:

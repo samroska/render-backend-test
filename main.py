@@ -62,15 +62,15 @@ async def health_check():
 def convert_mpo_to_png(img):
     """Convert MPO image to PNG format"""
     try:
-        # For MPO files, we want the first/main image
+         
         if hasattr(img, 'n_frames') and img.n_frames > 1:
-            # MPO files can have multiple frames, get the first one
-            img.seek(0)  # Go to first frame
+            
+            img.seek(0)  
             logger.info(f"MPO file detected with {img.n_frames} frames, using first frame")
         
-        # Convert to RGB if needed (removes alpha channel issues)
+         
         if img.mode in ['RGBA', 'LA', 'P']:
-            # Create white background for transparent images
+             
             background = Image.new('RGB', img.size, (255, 255, 255))
             if img.mode == 'P':
                 img = img.convert('RGBA')
@@ -80,12 +80,12 @@ def convert_mpo_to_png(img):
         elif img.mode != 'RGB':
             img = img.convert('RGB')
         
-        # Convert to PNG in memory
+        
         png_buffer = io.BytesIO()
         img.save(png_buffer, format='PNG')
         png_buffer.seek(0)
         
-        # Return the PNG image
+        
         return Image.open(png_buffer)
         
     except Exception as e:
@@ -122,17 +122,17 @@ async def predict_image(file: UploadFile = File(..., description="PNG, JPG, JPEG
                 }
             )
         
-        # Image validation and conversion
+         
         try:
             img = Image.open(io.BytesIO(file_content))
-            img.verify()  # Verify the image is valid
+            img.verify()  
             
-            # Re-open after verify (verify can close the image)
+            
             img = Image.open(io.BytesIO(file_content))
             original_format = img.format
             logger.info(f"Detected image format: {original_format}")
             
-            # Check if format is supported (now including MPO)
+             
             supported_formats = ['PNG', 'JPEG', 'MPO']
             if img.format not in supported_formats:
                 logger.error(f"Unsupported image format: {img.format}")
@@ -149,15 +149,14 @@ async def predict_image(file: UploadFile = File(..., description="PNG, JPG, JPEG
                     }
                 )
             
-            # Convert to PNG if needed
             if img.format in ['JPEG', 'MPO']:
                 logger.info(f"Converting {img.format} to PNG for processing")
                 
                 if img.format == 'MPO':
-                    # Handle MPO specifically
+                    
                     img = convert_mpo_to_png(img)
                 else:
-                    # Handle regular JPEG
+                    
                     if img.mode != 'RGB':
                         img = img.convert('RGB')
                     
@@ -181,7 +180,7 @@ async def predict_image(file: UploadFile = File(..., description="PNG, JPG, JPEG
                 }
             )
         
-        # ML Model Processing
+         
         try:
             logger.info("Starting ML model inference...")
             predictions = SkinLesionClassifier.predict(img)
